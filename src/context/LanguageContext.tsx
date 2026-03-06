@@ -10,7 +10,7 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguageState] = useState<Language>('kn'); // Default to Kannada initially
+  const [language, setLanguageState] = useState<Language>('en'); // Default to English
 
   useEffect(() => {
     // Check localStorage on mount
@@ -18,8 +18,8 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     if (storedLang === 'en' || storedLang === 'kn') {
       setLanguageState(storedLang);
     } else {
-      // First visit logic: Default is already 'kn', so just save it
-      localStorage.setItem('hamara_family_language', 'kn');
+      // First visit: default to English
+      localStorage.setItem('hamara_family_language', 'en');
     }
   }, []);
 
