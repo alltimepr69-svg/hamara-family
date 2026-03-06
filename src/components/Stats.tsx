@@ -15,7 +15,8 @@ import {
   Bar,
   AreaChart,
   Area,
-  Legend
+  Legend,
+  ComposedChart
 } from 'recharts';
 
 interface StatsProps {
@@ -246,40 +247,42 @@ export const Stats = ({ history, profile }: StatsProps) => {
         <h3 className="text-sm font-bold text-neutral-400 mb-4 uppercase tracking-wider">{t('stepsActivity')}</h3>
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
+            <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-              <XAxis 
-                dataKey="date" 
-                stroke="#525252" 
-                tick={{ fill: '#525252', fontSize: 10 }} 
+              <XAxis
+                dataKey="date"
+                stroke="#525252"
+                tick={{ fill: '#525252', fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
                 minTickGap={30}
               />
-              <YAxis 
-                stroke="#525252" 
-                tick={{ fill: '#525252', fontSize: 10 }} 
+              <YAxis
+                stroke="#525252"
+                tick={{ fill: '#525252', fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
                 width={30}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Bar 
-                dataKey="steps" 
-                name={t('steps')} 
-                unit="" 
-                fill="#3b82f6" 
-                radius={[4, 4, 0, 0]} 
+              <Bar
+                dataKey="steps"
+                name={t('steps')}
+                unit=""
+                fill="#3b82f6"
+                radius={[4, 4, 0, 0]}
               />
-              <Line 
-                type="monotone" 
-                dataKey="stepGoal" 
-                name={t('goal')} 
-                stroke="#525252" 
-                strokeDasharray="3 3" 
+              <Line
+                type="monotone"
+                dataKey="stepGoal"
+                name={t('goal')}
+                unit=""
+                stroke="#525252"
+                strokeDasharray="3 3"
                 dot={false}
+                strokeWidth={2}
               />
-            </BarChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </GlassCard>
