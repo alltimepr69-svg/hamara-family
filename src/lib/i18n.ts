@@ -3,7 +3,7 @@ export type Language = 'en' | 'kn';
 export const translations = {
   // General
   welcome: { kn: "ಸ್ವಾಗತ", en: "Welcome" },
-  appName: { kn: "ಹಮಾರಾ ಫ್ಯಾಮಿಲಿ", en: "Hamara Family" },
+  appName: { kn: "ಫಿಟ್‌ಹೋನಾ", en: "FitHona" },
   tagline: { kn: "ನಿಮ್ಮ ಆರೋಗ್ಯ, ನಮ್ಮ ಕುಟುಂಬ", en: "Your Health, Our Family" }, // Creative translation
   next: { kn: "ಮುಂದೆ", en: "Next" },
   back: { kn: "ಹಿಂದೆ", en: "Back" },
@@ -96,8 +96,8 @@ export const translations = {
   caloriesVsGoal: { kn: "ಕ್ಯಾಲೋರಿಗಳು vs ಗುರಿ", en: "Calories vs Goal" },
   macronutrients: { kn: "ಮ್ಯಾಕ್ರೋನ್ಯೂಟ್ರಿಯೆಂಟ್ಸ್", en: "Macronutrients" },
   stepsActivity: { kn: "ಹೆಜ್ಜೆಗಳ ಚಟುವಟಿಕೆ", en: "Steps Activity" },
-  shareTitle: { kn: "ನನ್ನ ಹಮಾರಾ ಫ್ಯಾಮಿಲಿ ಪ್ರಗತಿ", en: "My Hamara Family Progress" },
-  shareText: { kn: "ಹಮಾರಾ ಫ್ಯಾಮಿಲಿಯಲ್ಲಿ ನನ್ನ ಪ್ರಗತಿಯನ್ನು ನೋಡಿ!", en: "Check out my progress on Hamara Family!" },
+  shareTitle: { kn: "ನನ್ನ ಫಿಟ್‌ಹೋನಾ ಪ್ರಗತಿ", en: "My FitHona Progress" },
+  shareText: { kn: "ಫಿಟ್‌ಹೋನಾದಲ್ಲಿ ನನ್ನ ಪ್ರಗತಿಯನ್ನು ನೋಡಿ!", en: "Check out my progress on FitHona!" },
   
   // Calendar & Weight Logger
   logWeight: { kn: "ತೂಕವನ್ನು ದಾಖಲಿಸಿ", en: "Log Weight" },

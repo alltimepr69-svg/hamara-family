@@ -852,13 +852,13 @@ const CalendarView = ({ history, startDate, profileName, onDateClick }: { histor
         } else {
           const link = document.createElement('a');
           link.href = image;
-          link.download = 'hamara-family-progress.png';
+          link.download = 'fithona-progress.png';
           link.click();
         }
       } else {
         const link = document.createElement('a');
         link.href = image;
-        link.download = 'hamara-family-progress.png';
+        link.download = 'fithona-progress.png';
         link.click();
       }
     } catch (error) {
