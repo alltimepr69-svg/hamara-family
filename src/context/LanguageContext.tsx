@@ -29,7 +29,9 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const t = (key: keyof typeof translations) => {
-    return translations[key][language] || translations[key]['en'] || key;
+    const entry = translations[key];
+    if (!entry) return key as string;
+    return entry[language] || entry['en'] || key as string;
   };
 
   return (

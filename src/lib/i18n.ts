@@ -87,6 +87,7 @@ export const translations = {
   language: { kn: "ಭಾಷೆ", en: "Language" },
   
   // Stats
+  goal: { kn: "ಗುರಿ", en: "Goal" },
   yourJourney: { kn: "ನಿಮ್ಮ ಪ್ರಯಾಣ", en: "Your Journey" },
   shareReport: { kn: "ವರದಿ ಹಂಚಿಕೊಳ್ಳಿ", en: "Share Report" },
   goalsMet: { kn: "ಗುರಿಗಳನ್ನು ತಲುಪಲಾಗಿದೆ", en: "Goals Met" },
