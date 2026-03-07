@@ -74,6 +74,15 @@
     transform: translateZ(0);
   }
 
+  /* ── Horizontal filter chip row — hide scrollbar, keep touch scroll ─────── */
+  .hide-scrollbar {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE/Edge */
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;                  /* Chrome / Safari */
+  }
+
   /* ── Tabular nums helper ─────────────────────────────────────────────────── */
   .nums {
     font-variant-numeric: tabular-nums;

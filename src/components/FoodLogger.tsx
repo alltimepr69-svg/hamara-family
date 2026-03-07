@@ -6,13 +6,106 @@ import { Search, Plus, X, ChevronLeft, AlertTriangle, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '@/context/LanguageContext';
 
-interface FoodLoggerProps {
-  onAddFood: (food: FoodLog) => void;
-  onClose?: () => void;
-  isEmbedded?: boolean;
+// ─── Filter System ─────────────────────────────────────────────────────────────
+interface FilterDef {
+  readonly id: string;
+  readonly label: string;
+  readonly emoji: string;
+  readonly tags: readonly string[];
+  /** Optional override — if provided, overrides tag matching */
+  readonly customFilter?: (food: FoodItem) => boolean;
+  /** Tailwind classes for active chip */
+  readonly activeClass: string;
+  /** Tailwind classes for the count pill when active */
+  readonly countClass: string;
 }
 
-// ─── Smart Highlight: highlights ALL token occurrences ────────────────────────
+const FILTER_DEFS: FilterDef[] = [
+  {
+    id: 'superfood', label: 'Super Food', emoji: '⭐',
+    tags: ['Super Food'],
+    activeClass: 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-[0_0_14px_rgba(16,185,129,0.18)]',
+    countClass: 'bg-emerald-500/20 text-emerald-300',
+  },
+  {
+    id: 'healthy', label: 'Healthy', emoji: '✅',
+    tags: ['Healthy', 'Diabetic Friendly'],
+    activeClass: 'bg-green-500/20 border-green-400/50 text-green-300 shadow-[0_0_14px_rgba(34,197,94,0.15)]',
+    countClass: 'bg-green-500/20 text-green-300',
+  },
+  {
+    id: 'protein', label: 'High Protein', emoji: '💪',
+    tags: ['High Protein', 'Protein', 'Protein Rich', 'Lean Meat'],
+    activeClass: 'bg-sky-500/20 border-sky-400/50 text-sky-300 shadow-[0_0_14px_rgba(14,165,233,0.15)]',
+    countClass: 'bg-sky-500/20 text-sky-300',
+  },
+  {
+    id: 'veg-protein', label: 'Veg Protein', emoji: '🌱',
+    tags: [],
+    // Custom: protein-tagged foods that are NOT Non-Veg category and NOT tagged Lean Meat
+    customFilter: (f) =>
+      f.category !== 'Non-Veg' &&
+      !(f.tags ?? []).includes('Lean Meat') &&
+      (f.tags ?? []).some(t => ['High Protein', 'Protein', 'Protein Rich', 'Plant Protein'].includes(t)),
+    activeClass: 'bg-teal-500/20 border-teal-400/50 text-teal-300 shadow-[0_0_14px_rgba(20,184,166,0.15)]',
+    countClass: 'bg-teal-500/20 text-teal-300',
+  },
+  {
+    id: 'good-fats', label: 'Good Fats', emoji: '🥑',
+    tags: ['Good Fats', 'Healthy Fats', 'Omega-3'],
+    activeClass: 'bg-yellow-500/20 border-yellow-400/50 text-yellow-300 shadow-[0_0_14px_rgba(234,179,8,0.15)]',
+    countClass: 'bg-yellow-500/20 text-yellow-300',
+  },
+  {
+    id: 'fiber', label: 'High Fiber', emoji: '🌾',
+    tags: ['Fiber Rich', 'Fiber', 'High Fiber'],
+    activeClass: 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_14px_rgba(245,158,11,0.15)]',
+    countClass: 'bg-amber-500/20 text-amber-300',
+  },
+  {
+    id: 'low-carb', label: 'Low Carb', emoji: '📉',
+    tags: ['Low Carb', 'Zero Carb'],
+    activeClass: 'bg-violet-500/20 border-violet-400/50 text-violet-300 shadow-[0_0_14px_rgba(139,92,246,0.15)]',
+    countClass: 'bg-violet-500/20 text-violet-300',
+  },
+  {
+    id: 'hydrating', label: 'Hydrating', emoji: '💧',
+    tags: ['Hydrating', 'Electrolytes', 'Detox'],
+    activeClass: 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 shadow-[0_0_14px_rgba(6,182,212,0.15)]',
+    countClass: 'bg-cyan-500/20 text-cyan-300',
+  },
+  {
+    id: 'energy', label: 'Energy', emoji: '⚡',
+    tags: ['Energy', 'Stamina', 'Metabolism Boost', 'Strength'],
+    activeClass: 'bg-orange-500/20 border-orange-400/50 text-orange-300 shadow-[0_0_14px_rgba(249,115,22,0.15)]',
+    countClass: 'bg-orange-500/20 text-orange-300',
+  },
+  {
+    id: 'avoid', label: 'Avoid', emoji: '🚫',
+    tags: ['Avoid', 'Bad Fats'],
+    activeClass: 'bg-red-500/20 border-red-400/50 text-red-300 shadow-[0_0_14px_rgba(239,68,68,0.18)]',
+    countClass: 'bg-red-500/20 text-red-300',
+  },
+  {
+    id: 'processed', label: 'Heavily Processed', emoji: '⚠️',
+    tags: ['Heavily Processed', 'Processed', 'Synthetic food'],
+    activeClass: 'bg-rose-500/20 border-rose-400/50 text-rose-300 shadow-[0_0_14px_rgba(244,63,94,0.15)]',
+    countClass: 'bg-rose-500/20 text-rose-300',
+  },
+];
+
+/** Returns true if a food item matches the given FilterDef */
+const matchesFilter = (food: FoodItem, def: FilterDef): boolean => {
+  if (def.customFilter) return def.customFilter(food);
+  return (food.tags ?? []).some(t => def.tags.includes(t));
+};
+
+// ─── Precomputed filter counts (outside component — stable reference) ──────────
+const FILTER_COUNTS: Record<string, number> = Object.fromEntries(
+  FILTER_DEFS.map(f => [f.id, FOOD_DATABASE.filter(food => matchesFilter(food, f)).length])
+);
+
+// ─── Smart Highlight ──────────────────────────────────────────────────────────
 const HighlightedText = ({ text, highlight }: { text: string; highlight: string }) => {
   if (!highlight.trim()) return <>{text}</>;
   try {
@@ -33,115 +126,111 @@ const HighlightedText = ({ text, highlight }: { text: string; highlight: string 
 };
 
 // ─── Scoring Algorithm ─────────────────────────────────────────────────────────
-// Ranks results by: exact match > starts-with > word boundary > contains > char coverage
 const scoreFood = (food: FoodItem, query: string, tokens: string[]): number => {
-  const name    = food.name.toLowerCase();
-  const nameKn  = (food.nameKn  || '').toLowerCase();
-  const brand   = (food.brand   || '').toLowerCase();
-  const cat     = food.category.toLowerCase();
-  const tags    = (food.tags    || []).join(' ').toLowerCase();
-
+  const name   = food.name.toLowerCase();
+  const nameKn = (food.nameKn  || '').toLowerCase();
+  const brand  = (food.brand   || '').toLowerCase();
+  const cat    = food.category.toLowerCase();
+  const tags   = (food.tags    || []).join(' ').toLowerCase();
   let score = 0;
 
-  // 1. Exact match — absolute winner
   if (name === query) return 100_000;
-
-  // 2. Full query at start of name — very high relevance
   if (name.startsWith(query)) {
-    score += 10_000 + Math.max(0, 500 - name.length * 8); // shorter = more specific
+    score += 10_000 + Math.max(0, 500 - name.length * 8);
   } else {
     const qIdx = name.indexOf(query);
-    if (qIdx >= 0) score += 5_000 - qIdx * 15; // earlier = better
+    if (qIdx >= 0) score += 5_000 - qIdx * 15;
   }
-
-  // 3. Kannada name match
   if (nameKn.startsWith(query)) score += 3_000;
   else if (nameKn.includes(query)) score += 1_000;
 
-  // 4. Token-by-token scoring (handles multi-word queries)
   for (const token of tokens) {
     const tLen = token.length;
-
     if (name.startsWith(token)) {
       score += 2_000 + tLen * 15;
     } else {
-      // Word boundary match (token starts a word in name)
       const words = name.split(/[\s/()\-,]+/);
-      const wordStart = words.some(w => w.startsWith(token));
-      if (wordStart) {
+      if (words.some(w => w.startsWith(token))) {
         score += 1_200 + tLen * 12;
       } else {
         const idx = name.indexOf(token);
-        if (idx >= 0) score += 600 - idx * 4 + tLen * 8; // earlier + longer = better
+        if (idx >= 0) score += 600 - idx * 4 + tLen * 8;
       }
     }
-
-    // Brand / category / tag bonuses
     if (brand.startsWith(token)) score += 150;
     else if (brand.includes(token)) score += 80;
     if (cat.includes(token)) score += 50;
     if (tags.includes(token)) score += 30;
   }
 
-  // 5. Character coverage: how many chars of query appear in name in order
   let matched = 0, pos = 0;
   for (const ch of query) {
     const i = name.indexOf(ch, pos);
     if (i >= 0) { matched++; pos = i + 1; }
   }
   score += (matched / Math.max(query.length, 1)) * 300;
-
-  // 6. Specificity bonus: shorter names rank higher for identical queries
   score += Math.max(0, 120 - name.length * 1.5);
 
   return score;
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
+interface FoodLoggerProps {
+  onAddFood: (food: FoodLog) => void;
+  onClose?: () => void;
+  isEmbedded?: boolean;
+}
+
 export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLoggerProps) => {
   const { t, language } = useLanguage();
-  const [searchTerm, setSearchTerm]   = useState('');
-  const [customFood, setCustomFood]   = useState({ name: '', calories: '' });
-  const [showCustom, setShowCustom]   = useState(false);
+  const [searchTerm, setSearchTerm]     = useState('');
+  const [customFood, setCustomFood]     = useState({ name: '', calories: '' });
+  const [showCustom, setShowCustom]     = useState(false);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
-  const [quantity, setQuantity]       = useState(1);
+  const [quantity, setQuantity]         = useState(1);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
-  // useDeferredValue keeps typing instant — search runs after paint
   const deferredSearch = useDeferredValue(searchTerm);
-  const isStale = searchTerm !== deferredSearch;
+  const isStale        = searchTerm !== deferredSearch;
 
-  // ─── Search with full scoring ───────────────────────────────────────────────
+  // Active filter definition
+  const activeFilterDef = useMemo(
+    () => FILTER_DEFS.find(f => f.id === activeFilter) ?? null,
+    [activeFilter]
+  );
+
+  // ─── Filtered + scored food list ─────────────────────────────────────────────
   const filteredFood = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
-    if (!q) return [];
+    const q      = deferredSearch.trim().toLowerCase();
+    const tokens = q ? q.split(/\s+/).filter(t => t.length > 0) : [];
 
-    const tokens = q.split(/\s+/).filter(t => t.length > 0);
+    // Apply tag/custom filter first
+    const pool = activeFilterDef
+      ? FOOD_DATABASE.filter(f => matchesFilter(f, activeFilterDef))
+      : FOOD_DATABASE;
 
-    return FOOD_DATABASE
-      .filter(f => {
-        const searchable = [
-          f.name, f.nameKn || '', f.brand || '', f.category, ...(f.tags || [])
-        ].join(' ').toLowerCase();
-        return tokens.every(token => searchable.includes(token)); // ALL tokens must match
-      })
+    // Filter-only (no search): return sorted alphabetically
+    if (!q) {
+      if (!activeFilterDef) return [];
+      return [...pool].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // Search within pool
+    const matching = pool.filter(f => {
+      const searchable = [
+        f.name, f.nameKn || '', f.brand || '', f.category, ...(f.tags || [])
+      ].join(' ').toLowerCase();
+      return tokens.every(token => searchable.includes(token));
+    });
+
+    return matching
       .map(f => ({ food: f, score: scoreFood(f, q, tokens) }))
       .sort((a, b) => b.score - a.score)
-      .slice(0, 25)
+      .slice(0, 30)
       .map(r => r.food);
-  }, [deferredSearch]);
+  }, [deferredSearch, activeFilterDef]);
 
-  // ─── Color classes ──────────────────────────────────────────────────────────
-  const getColorClass = (color?: string) => {
-    switch (color) {
-      case 'red':     return 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10 active:bg-red-500/20';
-      case 'yellow':  return 'border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/10 active:bg-yellow-500/15';
-      case 'emerald': return 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.07)]';
-      case 'green':   return 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10';
-      default:        return 'border-white/5 hover:bg-white/5 active:bg-white/8';
-    }
-  };
-
-  // ─── Grouped view (no search) ───────────────────────────────────────────────
+  // ─── Category groups for browse view ─────────────────────────────────────────
   const groupedFood = useMemo(() =>
     FOOD_DATABASE.reduce((acc, food) => {
       if (!acc[food.category]) acc[food.category] = [];
@@ -156,7 +245,18 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
     'Drinks', 'Fruits', 'Vegetables', 'Grains', 'Salads', 'International', 'Fast Food', 'Breads',
   ];
 
-  // ─── Handlers ───────────────────────────────────────────────────────────────
+  // ─── Color helper ────────────────────────────────────────────────────────────
+  const getColorClass = (color?: string) => {
+    switch (color) {
+      case 'red':     return 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10 active:bg-red-500/20';
+      case 'yellow':  return 'border-yellow-500/30 bg-yellow-500/5 hover:bg-yellow-500/10 active:bg-yellow-500/15';
+      case 'emerald': return 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 shadow-[0_0_12px_rgba(16,185,129,0.07)]';
+      case 'green':   return 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10';
+      default:        return 'border-white/5 hover:bg-white/5 active:bg-white/8';
+    }
+  };
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────────
   const handleAdd = useCallback((
     name: string, calories: number,
     macros?: { protein: number; carbs: number; fat: number }
@@ -175,7 +275,7 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
   const handleQuantityAdd = useCallback(() => {
     if (!selectedFood) return;
     const totalCalories = Math.ceil(selectedFood.calories * quantity);
-    const totalMacros = selectedFood.macros ? {
+    const totalMacros   = selectedFood.macros ? {
       protein: Math.ceil(selectedFood.macros.protein * quantity),
       carbs:   Math.ceil(selectedFood.macros.carbs   * quantity),
       fat:     Math.ceil(selectedFood.macros.fat     * quantity),
@@ -191,16 +291,21 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
     }
   };
 
-  // ─── Food Row Component ─────────────────────────────────────────────────────
+  const toggleFilter = useCallback((id: string) => {
+    vibrate(8);
+    setActiveFilter(prev => prev === id ? null : id);
+  }, []);
+
+  // ─── Food Row ────────────────────────────────────────────────────────────────
   const FoodRow = ({
     food, idx, highlight
   }: { food: FoodItem; idx: number; highlight?: string }) => (
     <motion.button
-      layout
-      initial={{ opacity: 0, y: 6 }}
+      layout={!!highlight}  // GPU layout animation only during search (items reorder)
+      initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4, scale: 0.97 }}
-      transition={{ duration: 0.14, delay: Math.min(idx * 0.025, 0.18), ease: 'easeOut' }}
+      transition={{ duration: 0.13, delay: Math.min(idx * 0.022, 0.16), ease: 'easeOut' }}
       whileTap={{ scale: 0.974 }}
       onClick={() => { vibrate(10); setSelectedFood(food); }}
       className={cn(
@@ -252,7 +357,42 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
     </motion.button>
   );
 
-  // ─── Main Render ────────────────────────────────────────────────────────────
+  // ─── Filter Chip ─────────────────────────────────────────────────────────────
+  const FilterChip = ({ filter, index }: { filter: FilterDef; index: number }) => {
+    const isActive = activeFilter === filter.id;
+    const count    = FILTER_COUNTS[filter.id] ?? 0;
+    return (
+      <motion.button
+        key={filter.id}
+        initial={{ opacity: 0, scale: 0.8, y: 4 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ delay: index * 0.028, type: 'spring', stiffness: 420, damping: 30 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => toggleFilter(filter.id)}
+        className={cn(
+          "flex items-center gap-1.5 pl-2.5 pr-2 py-1.5 rounded-full text-[11px] font-semibold",
+          "whitespace-nowrap shrink-0 border transition-all duration-200 select-none",
+          isActive
+            ? filter.activeClass
+            : "bg-white/5 border-white/8 text-neutral-400 hover:bg-white/8 hover:border-white/18 hover:text-neutral-300"
+        )}
+      >
+        <span className="text-[13px] leading-none">{filter.emoji}</span>
+        <span>{filter.label}</span>
+        <span className={cn(
+          "text-[9px] px-1.5 py-0.5 rounded-full font-bold leading-none ml-0.5",
+          isActive ? filter.countClass : "bg-white/8 text-neutral-600"
+        )}>
+          {count}
+        </span>
+      </motion.button>
+    );
+  };
+
+  // ─── Derived state for content key ───────────────────────────────────────────
+  const showingList = !!searchTerm || !!activeFilter;
+
+  // ─── Main Render ─────────────────────────────────────────────────────────────
   const Content = (
     <div className={cn(
       "w-full flex flex-col bg-[#080808]",
@@ -290,7 +430,7 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
       <div className="overflow-y-auto flex-1 overscroll-contain fithona-scroll">
         <AnimatePresence mode="wait" initial={false}>
 
-          {/* ── Selected Food View ── */}
+          {/* ══ Selected Food View ══ */}
           {selectedFood ? (
             <motion.div
               key="selected"
@@ -300,7 +440,6 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
               transition={{ type: 'spring', stiffness: 420, damping: 38 }}
               className="p-4 space-y-5"
             >
-              {/* Calorie display */}
               <div className="text-center space-y-1.5 pt-2">
                 <motion.div
                   initial={{ scale: 0.75, opacity: 0 }}
@@ -316,7 +455,6 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                 </div>
               </div>
 
-              {/* Macros grid */}
               {selectedFood.macros && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -337,7 +475,6 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                 </motion.div>
               )}
 
-              {/* Tags */}
               {selectedFood.tags && selectedFood.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 justify-center">
                   {selectedFood.tags.map(tag => (
@@ -346,7 +483,6 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                 </div>
               )}
 
-              {/* Quantity selector */}
               <div className="space-y-2">
                 <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-widest">
                   {t('quantity')} — {selectedFood.unit}
@@ -375,7 +511,6 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-2 pt-1">
                 <motion.button
                   whileTap={{ scale: 0.97 }}
@@ -389,16 +524,17 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
             </motion.div>
 
           ) : !showCustom ? (
-            /* ── Search / Browse View ── */
+
+            /* ══ Search / Browse View ══ */
             <motion.div
               key="search"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="p-3.5 space-y-3 pb-24"
+              className="p-3.5 space-y-2.5 pb-24"
             >
-              {/* Search input */}
+              {/* ── Search Input ── */}
               <div className="relative">
                 <Search
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
@@ -429,33 +565,69 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                 </AnimatePresence>
               </div>
 
-              {/* Results count badge */}
+              {/* ── Filter Chips ── */}
+              <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-3.5 px-3.5 pb-0.5">
+                {FILTER_DEFS.map((filter, i) => (
+                  <FilterChip key={filter.id} filter={filter} index={i} />
+                ))}
+              </div>
+
+              {/* ── Active filter / search status bar ── */}
               <AnimatePresence>
-                {searchTerm && (
+                {(activeFilter || searchTerm) && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="flex items-center justify-between px-1"
+                    transition={{ duration: 0.16 }}
+                    className="flex items-center justify-between px-0.5 overflow-hidden"
                   >
-                    <span className="text-[10px] text-neutral-500">
-                      {isStale
-                        ? <span className="text-neutral-600 animate-pulse">Searching…</span>
-                        : <span>{filteredFood.length} result{filteredFood.length !== 1 ? 's' : ''}</span>
-                      }
-                    </span>
-                    {filteredFood.length > 0 && (
-                      <span className="text-[10px] text-amber-500/70">↵ to select top result</span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* Filter tag */}
+                      <AnimatePresence mode="popLayout">
+                        {activeFilterDef && (
+                          <motion.button
+                            key={activeFilterDef.id}
+                            initial={{ opacity: 0, scale: 0.75, x: -6 }}
+                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                            exit={{ opacity: 0, scale: 0.75, x: -6 }}
+                            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => { vibrate(6); setActiveFilter(null); }}
+                            className={cn(
+                              "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 border",
+                              activeFilterDef.activeClass
+                            )}
+                          >
+                            <span>{activeFilterDef.emoji}</span>
+                            <span>{activeFilterDef.label}</span>
+                            <X size={9} className="ml-0.5 opacity-70" />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Result count */}
+                      <span className="text-[10px] text-neutral-500 truncate">
+                        {isStale
+                          ? <span className="text-neutral-600 animate-pulse">Searching…</span>
+                          : <span>{filteredFood.length} result{filteredFood.length !== 1 ? 's' : ''}</span>
+                        }
+                      </span>
+                    </div>
+
+                    {/* Keyboard hint */}
+                    {searchTerm && filteredFood.length > 0 && (
+                      <span className="text-[10px] text-amber-500/60 shrink-0 ml-2">↵ select top</span>
                     )}
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Results / Categories */}
+              {/* ── Main Content ── */}
               <AnimatePresence mode="wait" initial={false}>
-                {searchTerm ? (
-                  /* ─ Search Results ─ */
+
+                {showingList ? (
+                  /* ─ Results List (search and/or filter active) ─ */
                   <motion.div
                     key="results"
                     initial={{ opacity: 0 }}
@@ -467,7 +639,12 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                     <AnimatePresence initial={false}>
                       {filteredFood.length > 0 ? (
                         filteredFood.map((food, idx) => (
-                          <FoodRow key={food.name} food={food} idx={idx} highlight={searchTerm} />
+                          <FoodRow
+                            key={food.name}
+                            food={food}
+                            idx={idx}
+                            highlight={searchTerm || undefined}
+                          />
                         ))
                       ) : !isStale ? (
                         <motion.div
@@ -476,17 +653,22 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.2 }}
-                          className="text-center py-12 text-neutral-500"
+                          className="text-center py-14 text-neutral-500"
                         >
                           <Search size={30} className="mx-auto mb-3 opacity-15" />
                           <p className="text-sm mb-1 font-medium">{t('noFoodsFound')}</p>
-                          <p className="text-xs text-neutral-600">Try the main ingredient — e.g. "Chicken" or "Rice"</p>
+                          <p className="text-xs text-neutral-600">
+                            {activeFilter && !searchTerm
+                              ? 'No foods in this filter yet'
+                              : 'Try the main ingredient — e.g. "Chicken" or "Rice"'}
+                          </p>
                         </motion.div>
                       ) : null}
                     </AnimatePresence>
                   </motion.div>
+
                 ) : (
-                  /* ─ Default Category View ─ */
+                  /* ─ Default Category Browse ─ */
                   <motion.div
                     key="categories"
                     initial={{ opacity: 0 }}
@@ -495,7 +677,6 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                     transition={{ duration: 0.12 }}
                     className="space-y-4"
                   >
-                    {/* Super Foods */}
                     <div className="space-y-1.5">
                       <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
                         <Zap size={10} fill="currentColor" /> {t('recommended')}
@@ -505,7 +686,6 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
                       ))}
                     </div>
 
-                    {/* Other categories */}
                     {categoryOrder.map(cat => {
                       if (cat === 'Super Food') return null;
                       const items = groupedFood[cat];
@@ -531,7 +711,7 @@ export const FoodLogger = ({ onAddFood, onClose, isEmbedded = false }: FoodLogge
             </motion.div>
 
           ) : (
-            /* ── Custom Food View ── */
+            /* ══ Custom Food View ══ */
             <motion.div
               key="custom"
               initial={{ opacity: 0, x: 20 }}
