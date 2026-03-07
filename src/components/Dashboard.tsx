@@ -9,7 +9,7 @@ import { BottomNav } from './BottomNav';
 import { Plus, Flame, Footprints, LogOut, Trash2, X, Share2, Download, Scale, Edit2, Check } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, isBefore, isAfter, startOfYear, eachMonthOfInterval, startOfWeek, differenceInDays } from 'date-fns';
 import confetti from 'canvas-confetti';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useSpring, useTransform } from 'motion/react';
 import { cn } from '@/lib/utils';
 import html2canvas from 'html2canvas';
 import { useLanguage } from '@/context/LanguageContext';
@@ -54,6 +54,11 @@ export const Dashboard = ({ profile, dailyData, allHistory, onUpdateData, onUpda
 
   // Protein Progress
   const proteinProgress = profile.dailyProteinGoal ? (dailyMacros.protein / profile.dailyProteinGoal) * 100 : 0;
+
+  // ─── Count-up spring for the center calorie number ──────────────────────────
+  const netCalSpring  = useSpring(0, { stiffness: 65, damping: 18 });
+  useEffect(() => { netCalSpring.set(netCalories); }, [netCalories]);
+  const displayNetCal = useTransform(netCalSpring, v => `${Math.round(v)}`);
   
   // Muscle Shield Logic: Hit protein goal before calorie limit
   const isMuscleShieldActive = dailyMacros.protein >= (profile.dailyProteinGoal || 100) && netCalories <= profile.dailyCalorieGoal;
@@ -232,71 +237,98 @@ export const Dashboard = ({ profile, dailyData, allHistory, onUpdateData, onUpda
             </div>
 
             {/* Main Rings */}
-            <motion.div 
-              initial={{ scale: 0.8, opacity: 0 }}
+            <motion.div
+              initial={{ scale: 0.88, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", bounce: 0.4 }}
-              className="flex flex-col items-center mb-8 relative gap-4"
+              transition={{ type: 'spring', stiffness: 280, damping: 28, mass: 0.8 }}
+              className="flex flex-col items-center mb-8 relative gap-3"
             >
               <div className="relative">
-                {/* Background circles for depth */}
-                <div className="absolute inset-0 rounded-full border-[12px] border-neutral-900 scale-90" />
-                
-                <ProgressRing 
-                  radius={120} 
-                  stroke={12} 
-                  progress={calorieProgress} 
-                  color="stroke-amber-500" 
-                  className="relative z-10 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+                {/* Ambient glow — subtle warm halo behind the ring cluster */}
+                <div className="absolute inset-0 rounded-full bg-amber-500/8 blur-3xl scale-125 pointer-events-none" />
+
+                {/* ── Calorie ring (outermost) ── */}
+                <ProgressRing
+                  radius={120}
+                  stroke={11}
+                  progress={calorieProgress}
+                  color="stroke-amber-500"
+                  hexColor="#f59e0b"
+                  delay={0}
+                  className="relative z-10"
                 />
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <Flame className={cn("mb-1 transition-colors drop-shadow-lg", calorieProgress > 100 ? "text-red-500" : "text-amber-500")} size={32} />
-                  <span className="text-4xl font-bold text-neutral-100 tracking-tight">{netCalories}</span>
-                  <span className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
-                    / {profile.dailyCalorieGoal} kcal ({t('remaining')})
-                  </span>
-                  {isMuscleShieldActive && (
-                    <motion.div 
-                      initial={{ scale: 0 }} 
-                      animate={{ scale: 1 }} 
-                      className="absolute -bottom-10 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-xl text-[10px] font-bold border border-emerald-500/30 flex items-center justify-center gap-1 text-center leading-tight shadow-lg backdrop-blur-md max-w-[160px]"
-                    >
-                      {t('muscleShield')}
-                    </motion.div>
-                  )}
+
+                {/* ── Center content ── */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-0">
+                  <Flame
+                    className={cn("transition-colors mb-0.5", calorieProgress > 100 ? "text-red-400" : "text-amber-500")}
+                    size={20}
+                  />
+                  <motion.span className="text-[42px] font-bold text-neutral-100 tracking-tight leading-none tabular-nums">
+                    {displayNetCal}
+                  </motion.span>
+                  <span className="text-[10px] text-neutral-500 font-medium leading-none mt-1">kcal left</span>
+                  <span className="text-[9px] text-neutral-700 mt-0.5">of {profile.dailyCalorieGoal}</span>
                 </div>
-                
-                {/* Step Ring */}
+
+                {/* ── Steps ring (middle) — staggered 0.1s ── */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                   <ProgressRing 
-                    radius={90} 
-                    stroke={8} 
-                    progress={stepProgress} 
-                    color="stroke-blue-500" 
-                    className="opacity-80 drop-shadow-[0_0_10px_rgba(59,130,246,0.4)]"
+                  <ProgressRing
+                    radius={90}
+                    stroke={8}
+                    progress={stepProgress}
+                    color="stroke-blue-400"
+                    hexColor="#60a5fa"
+                    delay={0.1}
                   />
                 </div>
 
-                {/* Protein Ring (Inner) */}
+                {/* ── Protein ring (inner) — staggered 0.2s ── */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                   <ProgressRing 
-                    radius={60} 
-                    stroke={6} 
-                    progress={proteinProgress} 
-                    color="stroke-emerald-500" 
-                    className="opacity-60 drop-shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+                  <ProgressRing
+                    radius={62}
+                    stroke={6}
+                    progress={proteinProgress}
+                    color="stroke-emerald-400"
+                    hexColor="#34d399"
+                    delay={0.2}
                   />
                 </div>
               </div>
 
-              {/* Protein Intake Display */}
-              <div className="text-center -mt-2">
-                <span className="text-emerald-400 font-bold text-sm">{dailyMacros.protein}g</span>
-                <span className="text-neutral-500 text-xs ml-1">/ {profile.dailyProteinGoal || 100}g {t('protein')}</span>
+              {/* Muscle Shield badge — in flow, not absolute */}
+              <AnimatePresence>
+                {isMuscleShieldActive && (
+                  <motion.div
+                    key="muscle-shield"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    className="bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-xl text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1 leading-tight shadow-lg backdrop-blur-md"
+                  >
+                    {t('muscleShield')}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* ── Ring legend ── */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span className="text-[10px] text-neutral-500 whitespace-nowrap">{t('calories')}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  <span className="text-[10px] text-neutral-500 whitespace-nowrap">{t('steps')}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span className="text-[10px] text-neutral-500 whitespace-nowrap">{dailyMacros.protein}g protein</span>
+                </div>
               </div>
 
               {streak > 0 && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex items-center gap-1.5 text-amber-500 font-bold bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 text-sm shadow-[0_0_10px_rgba(245,158,11,0.2)]"
@@ -307,62 +339,105 @@ export const Dashboard = ({ profile, dailyData, allHistory, onUpdateData, onUpda
             </motion.div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <GlassCard className="p-4 flex flex-col items-center justify-center gap-2 group hover:border-blue-500/30 transition-colors">
-                <div className="flex items-center gap-2 text-blue-400 mb-1">
-                  <Footprints size={20} />
-                  <span className="font-bold">{t('steps')}</span>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {/* Steps */}
+              <GlassCard className="p-4 flex flex-col gap-3 hover:border-blue-500/30 transition-colors">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
+                    <Footprints size={14} className="text-blue-400" />
+                  </div>
+                  <span className="text-xs text-neutral-500 font-medium">{t('steps')}</span>
                 </div>
-                <span className="text-2xl font-bold text-neutral-100">{dailyData.steps.toLocaleString()}</span>
-                <div className="text-xs text-neutral-500">-{stepCalories} kcal</div>
-                <div className="flex w-full gap-2 mt-2">
-                  <Input 
-                    type="number" 
-                    placeholder={t('add')} 
-                    className="py-1 px-2 text-sm text-center bg-white/5 border-white/10"
+                <div>
+                  <div className="text-2xl font-bold text-neutral-100 tabular-nums">{dailyData.steps.toLocaleString()}</div>
+                  <div className="text-[11px] text-neutral-600 mt-0.5">−{stepCalories} kcal burned</div>
+                </div>
+                <div className="flex gap-2 mt-auto">
+                  <Input
+                    type="number"
+                    placeholder={t('add')}
+                    className="py-1.5 px-2 text-sm bg-white/5 border-white/10"
                     value={stepsInput}
                     onChange={(e) => setStepsInput(e.target.value)}
                   />
-                  <button onClick={() => {
-                    vibrate(10);
-                    updateSteps();
-                  }} className="bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded-lg px-3 hover:bg-blue-500 hover:text-white transition-all">
+                  <button
+                    onClick={() => { vibrate(10); updateSteps(); }}
+                    className="bg-blue-500/15 text-blue-400 border border-blue-500/40 rounded-lg px-3 hover:bg-blue-500 hover:text-white transition-all shrink-0"
+                  >
                     <Plus size={16} />
                   </button>
                 </div>
               </GlassCard>
 
-              <GlassCard className="p-4 flex flex-col items-center justify-center gap-2 group hover:border-amber-500/30 transition-colors">
-                <div className="flex items-center gap-2 text-amber-400 mb-1">
-                  <Flame size={20} />
-                  <span className="font-bold">{t('remaining')}</span>
+              {/* Calories Remaining */}
+              <GlassCard className="p-4 flex flex-col gap-3 hover:border-amber-500/30 transition-colors">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                    <Flame size={14} className="text-amber-400" />
+                  </div>
+                  <span className="text-xs text-neutral-500 font-medium">{t('remaining')}</span>
                 </div>
-                <span className={cn("text-2xl font-bold", caloriesRemaining < 0 ? "text-red-400" : "text-neutral-100")}>
-                  {caloriesRemaining}
-                </span>
-                <span className="text-xs text-neutral-500 text-center px-2 leading-tight">{t('netKcalLeft')}</span>
-                <div className="w-full mt-2 pt-2 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center text-[10px] text-neutral-400 gap-1">
-                   <span>{t('weeklyAvg')}:</span>
-                   <span className="font-bold text-neutral-200">{weeklyAvgCalories} kcal</span>
+                <div>
+                  <div className={cn("text-2xl font-bold tabular-nums", caloriesRemaining < 0 ? "text-red-400" : "text-neutral-100")}>
+                    {caloriesRemaining}
+                  </div>
+                  <div className="text-[11px] text-neutral-600 mt-0.5">kcal remaining</div>
+                </div>
+                <div className="mt-auto pt-2.5 border-t border-white/5 flex justify-between items-center">
+                  <span className="text-[11px] text-neutral-500">{t('weeklyAvg')}</span>
+                  <span className="text-[11px] font-bold text-neutral-300 tabular-nums">{weeklyAvgCalories} kcal</span>
                 </div>
               </GlassCard>
             </div>
 
             {/* Daily Macros Summary */}
-            <div className="grid grid-cols-3 gap-2 mb-6">
-              <GlassCard className="p-3 flex flex-col items-center justify-center gap-1 border-emerald-500/20 bg-emerald-500/5">
-                <div className="text-[10px] text-emerald-400 uppercase tracking-wider font-bold truncate w-full text-center">{t('protein')}</div>
-                <div className="text-xl font-bold text-emerald-300">{dailyMacros.protein}g</div>
-              </GlassCard>
-              <GlassCard className="p-3 flex flex-col items-center justify-center gap-1 border-amber-500/20 bg-amber-500/5">
-                <div className="text-[10px] text-amber-400 uppercase tracking-wider font-bold truncate w-full text-center">{t('carbs')}</div>
-                <div className="text-xl font-bold text-amber-300">{dailyMacros.carbs}g</div>
-              </GlassCard>
-              <GlassCard className="p-3 flex flex-col items-center justify-center gap-1 border-red-500/20 bg-red-500/5">
-                <div className="text-[10px] text-red-400 uppercase tracking-wider font-bold truncate w-full text-center">{t('fats')}</div>
-                <div className="text-xl font-bold text-red-300">{dailyMacros.fat}g</div>
-              </GlassCard>
-            </div>
+            <GlassCard className="p-4 mb-6">
+              <div className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold mb-3">Macros Today</div>
+              <div className="grid grid-cols-3 gap-4">
+                {/* Protein */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">{t('protein')}</span>
+                  <div className="text-xl font-bold text-emerald-300 tabular-nums">{dailyMacros.protein}g</div>
+                  <div className="h-1 rounded-full bg-emerald-500/10 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-emerald-400"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min((dailyMacros.protein / (profile.dailyProteinGoal || 100)) * 100, 100)}%` }}
+                      transition={{ type: 'spring', stiffness: 60, damping: 15, delay: 0.3 }}
+                    />
+                  </div>
+                  <div className="text-[9px] text-neutral-600">/ {profile.dailyProteinGoal || 100}g goal</div>
+                </div>
+                {/* Carbs */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">{t('carbs')}</span>
+                  <div className="text-xl font-bold text-amber-300 tabular-nums">{dailyMacros.carbs}g</div>
+                  <div className="h-1 rounded-full bg-amber-500/10 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-amber-400"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min((dailyMacros.carbs / 300) * 100, 100)}%` }}
+                      transition={{ type: 'spring', stiffness: 60, damping: 15, delay: 0.4 }}
+                    />
+                  </div>
+                  <div className="text-[9px] text-neutral-600">carbs</div>
+                </div>
+                {/* Fats */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">{t('fats')}</span>
+                  <div className="text-xl font-bold text-rose-300 tabular-nums">{dailyMacros.fat}g</div>
+                  <div className="h-1 rounded-full bg-rose-500/10 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-rose-400"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min((dailyMacros.fat / 80) * 100, 100)}%` }}
+                      transition={{ type: 'spring', stiffness: 60, damping: 15, delay: 0.5 }}
+                    />
+                  </div>
+                  <div className="text-[9px] text-neutral-600">dietary fats</div>
+                </div>
+              </div>
+            </GlassCard>
 
             {/* Today's Log */}
             <div className="mb-4">
