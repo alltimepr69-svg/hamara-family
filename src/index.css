@@ -10,8 +10,12 @@
   html {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    scroll-behavior: smooth;
+    /* GPU-composited layer for the root so subpages get their own layers cheaply */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  
+
   body {
     @apply bg-black text-neutral-100 antialiased selection:bg-amber-500/30;
     overscroll-behavior-y: none;
@@ -21,14 +25,58 @@
   input, select, textarea {
     font-size: 16px !important;
   }
+
+  /* Promote animated elements to their own GPU layers */
+  [data-motion], .motion-safe\:transform {
+    will-change: transform, opacity;
+  }
 }
 
 @layer utilities {
+  /* ── Glass surfaces ──────────────────────────────────────────────────────── */
   .glass-panel {
     @apply bg-neutral-900/40 backdrop-blur-xl border border-white/10 shadow-xl;
+    /* CSS containment: limits repaint to the box itself */
+    contain: paint;
   }
-  
+
   .glass-input {
     @apply bg-white/5 border border-white/10 text-neutral-100 placeholder:text-neutral-500 focus:ring-2 focus:ring-amber-500/50 focus:bg-white/10 transition-all outline-none;
+  }
+
+  /* ── Custom scrollbar — used in FoodLogger body (fithona-scroll) ─────────── */
+  .fithona-scroll {
+    /* Promote to GPU layer so list scroll is composited, not repainted */
+    will-change: scroll-position;
+    /* Webkit custom scrollbar (Chrome / Safari / Edge) */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255 255 255 / 0.08) transparent;
+  }
+  .fithona-scroll::-webkit-scrollbar {
+    width: 3px;
+  }
+  .fithona-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .fithona-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 9999px;
+  }
+  .fithona-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+  }
+
+  /* ── Smooth page transitions — promote animated pages to compositor ──────── */
+  .page-transition {
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+  }
+
+  /* ── Tabular nums helper ─────────────────────────────────────────────────── */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
